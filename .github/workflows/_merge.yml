@@ -1,0 +1,69 @@
+name: _merge
+
+on:
+  workflow_call:
+    inputs:
+      matrix:
+        required: true
+        type: string
+      image_name:
+        required: true
+        type: string
+
+jobs:
+  merge:
+    name: "Merge PHP ${{ matrix.php_version }} / Node ${{ matrix.node_version }}"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(inputs.matrix) }}
+
+    steps:
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Compute final tags
+        id: meta
+        shell: bash
+        run: |
+          IMAGE="ghcr.io/${{ inputs.image_name }}"
+          PHP="${{ matrix.php_version }}"
+          NODE="${{ matrix.node_version }}"
+
+          TAGS="${IMAGE}:php${PHP}-node${NODE}"
+
+          if [[ "${NODE}" == "${{ matrix.default_node }}" ]]; then
+            TAGS="${TAGS},${IMAGE}:php${PHP}"
+          fi
+
+          if [[ "${{ matrix.is_latest }}" == "true" && "${NODE}" == "${{ matrix.default_node }}" ]]; then
+            TAGS="${TAGS},${IMAGE}:latest"
+          fi
+
+          echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
+
+      - name: Create and push multi-arch manifest
+        shell: bash
+        run: |
+          IMAGE="ghcr.io/${{ inputs.image_name }}"
+          PHP="${{ matrix.php_version }}"
+          NODE="${{ matrix.node_version }}"
+
+          AMD="${IMAGE}:php${PHP}-node${NODE}-amd64"
+          ARM="${IMAGE}:php${PHP}-node${NODE}-arm64"
+
+          IFS=',' read -ra TAG_LIST <<< "${{ steps.meta.outputs.tags }}"
+          for TAG in "${TAG_LIST[@]}"; do
+            docker buildx imagetools create -t "${TAG}" "${AMD}" "${ARM}"
+          done

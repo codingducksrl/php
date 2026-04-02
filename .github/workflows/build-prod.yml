@@ -8,134 +8,71 @@ on:
       - "prod/**"
   workflow_dispatch:
 
-env:
-  REGISTRY: ghcr.io
-  # Image name: ghcr.io/<owner>/laravel-php
-  IMAGE_NAME: ${{ github.repository_owner }}/laravel-php
-
 jobs:
-  build:
-    name: "PHP ${{ matrix.php_version }} / Node ${{ matrix.node_version }} (${{ matrix.runner }})"
-    runs-on: ${{ matrix.runner }}
-    permissions:
-      contents: read
-      packages: write
-
-    strategy:
-      fail-fast: false
-      matrix:
-        php_version: ["8.4", "8.5"]
-        node_version: [20, 22, 24]
-        runner: [ubuntu-latest, ubuntu-24-arm]
-        include:
-          - php_version: "8.4"
-            php_dir: php84
-            default_node: 22
-          - php_version: "8.5"
-            php_dir: php85
-            default_node: 24
-
+  detect:
+    name: Detect changed PHP versions
+    runs-on: ubuntu-latest
+    outputs:
+      build_matrix: ${{ steps.filter.outputs.build_matrix }}
+      merge_matrix: ${{ steps.filter.outputs.merge_matrix }}
+      image_name: ${{ steps.filter.outputs.image_name }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
 
-      - name: Set platform info
-        id: platform
+      - name: Determine versions to build
+        id: filter
         run: |
-          if [[ "${{ matrix.runner }}" == "ubuntu-latest" ]]; then
-            echo "arch=amd64" >> "$GITHUB_OUTPUT"
-            echo "platform=linux/amd64" >> "$GITHUB_OUTPUT"
+          # ── Single source of truth ───────────────────────────────────────
+          NODE_VERSIONS='[20, 22, 24]'
+          ALL_VERSIONS='[
+            {"php_version":"8.4","php_dir":"php84","default_node":22,"is_latest":false},
+            {"php_version":"8.5","php_dir":"php85","default_node":24,"is_latest":true}
+          ]'
+          # ─────────────────────────────────────────────────────────────────
+
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            VERSIONS="$ALL_VERSIONS"
           else
-            echo "arch=arm64" >> "$GITHUB_OUTPUT"
-            echo "platform=linux/arm64" >> "$GITHUB_OUTPUT"
+            VERSIONS="[]"
+            for row in $(echo "$ALL_VERSIONS" | jq -c '.[]'); do
+              dir=$(echo "$row" | jq -r '.php_dir')
+              if git diff --name-only HEAD~1 HEAD | grep -q "^prod/laravel/${dir}/"; then
+                VERSIONS=$(echo "$VERSIONS" | jq ". += [$row]")
+              fi
+            done
           fi
 
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v4
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          BUILD_MATRIX=$(echo "$VERSIONS" | jq -c --argjson nodes "$NODE_VERSIONS" '{
+            php_version: [.[].php_version],
+            node_version: $nodes,
+            runner: ["ubuntu-latest", "ubuntu-24-arm"],
+            include: map({php_version, php_dir, default_node, is_latest})
+          }')
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
+          MERGE_MATRIX=$(echo "$VERSIONS" | jq -c --argjson nodes "$NODE_VERSIONS" '{
+            php_version: [.[].php_version],
+            node_version: $nodes,
+            include: map({php_version, php_dir, default_node, is_latest})
+          }')
 
-      - name: Build and push (arch-specific)
-        uses: docker/build-push-action@v7
-        with:
-          context: prod/laravel/${{ matrix.php_dir }}
-          file: prod/laravel/${{ matrix.php_dir }}/Dockerfile
-          platforms: ${{ steps.platform.outputs.platform }}
-          push: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:php${{ matrix.php_version }}-node${{ matrix.node_version }}-${{ steps.platform.outputs.arch }}
-          build-args: |
-            NODE_VERSION=${{ matrix.node_version }}
-          cache-from: type=gha,scope=prod-${{ matrix.php_dir }}-node${{ matrix.node_version }}-${{ steps.platform.outputs.arch }}
-          cache-to: type=gha,mode=max,scope=prod-${{ matrix.php_dir }}-node${{ matrix.node_version }}-${{ steps.platform.outputs.arch }}
+          echo "build_matrix=${BUILD_MATRIX}" >> "$GITHUB_OUTPUT"
+          echo "merge_matrix=${MERGE_MATRIX}" >> "$GITHUB_OUTPUT"
+          echo "image_name=${{ github.repository_owner }}/laravel-php" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: detect
+    uses: ./.github/workflows/_build.yml
+    with:
+      matrix: ${{ needs.detect.outputs.build_matrix }}
+      image_name: ${{ needs.detect.outputs.image_name }}
+    secrets: inherit
 
   merge:
-    name: "Merge PHP ${{ matrix.php_version }} / Node ${{ matrix.node_version }}"
-    needs: build
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-
-    strategy:
-      fail-fast: false
-      matrix:
-        php_version: ["8.4", "8.5"]
-        node_version: [20, 22, 24]
-        include:
-          - php_version: "8.4"
-            php_dir: php84
-            default_node: 22
-          - php_version: "8.5"
-            php_dir: php85
-            default_node: 24
-
-    steps:
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v4
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
-
-      - name: Compute final tags
-        id: meta
-        shell: bash
-        run: |
-          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
-          PHP="${{ matrix.php_version }}"
-          NODE="${{ matrix.node_version }}"
-
-          TAGS="${IMAGE}:php${PHP}-node${NODE}"
-
-          if [[ "${NODE}" == "${{ matrix.default_node }}" ]]; then
-            TAGS="${TAGS},${IMAGE}:php${PHP}"
-          fi
-
-          if [[ "${PHP}" == "8.5" && "${NODE}" == "24" ]]; then
-            TAGS="${TAGS},${IMAGE}:latest"
-          fi
-
-          echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
-
-      - name: Create and push multi-arch manifest
-        shell: bash
-        run: |
-          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
-          PHP="${{ matrix.php_version }}"
-          NODE="${{ matrix.node_version }}"
-
-          AMD="${IMAGE}:php${PHP}-node${NODE}-amd64"
-          ARM="${IMAGE}:php${PHP}-node${NODE}-arm64"
-
-          IFS=',' read -ra TAG_LIST <<< "${{ steps.meta.outputs.tags }}"
-          for TAG in "${TAG_LIST[@]}"; do
-            docker buildx imagetools create -t "${TAG}" "${AMD}" "${ARM}"
-          done
+    needs: [detect, build]
+    uses: ./.github/workflows/_merge.yml
+    with:
+      matrix: ${{ needs.detect.outputs.merge_matrix }}
+      image_name: ${{ needs.detect.outputs.image_name }}
+    secrets: inherit
