@@ -24,12 +24,26 @@ jobs:
       - name: Determine versions to build
         id: filter
         run: |
-          # ── Single source of truth ───────────────────────────────────────
-          NODE_VERSIONS='[20, 22, 24]'
-          ALL_VERSIONS='[
-            {"php_version":"8.4","php_dir":"php84","default_node":22,"is_latest":false},
-            {"php_version":"8.5","php_dir":"php85","default_node":24,"is_latest":true}
-          ]'
+          # ── Auto-discover PHP versions from folder structure ──────────────
+          ALL_VERSIONS='[]'
+          for config_file in prod/laravel/php*/config.json; do
+            dir=$(dirname "$config_file" | xargs basename)
+            php_version=$(echo "$dir" | sed 's/php\([0-9]\)\([0-9]*\)/\1.\2/')
+            config=$(cat "$config_file")
+            ver=$(echo "$config" | jq -r '.version')
+            default_node=$(echo "$config" | jq '.default_node')
+            is_latest=$(echo "$config" | jq '.is_latest')
+            node_versions=$(echo "$config" | jq '.node_versions')
+            entry=$(jq -n \
+              --arg php_version "$php_version" \
+              --arg php_dir "$dir" \
+              --arg ver "$ver" \
+              --argjson default_node "$default_node" \
+              --argjson is_latest "$is_latest" \
+              --argjson node_versions "$node_versions" \
+              '{php_version: $php_version, php_dir: $php_dir, image_version: $ver, default_node: $default_node, is_latest: $is_latest, node_versions: $node_versions}')
+            ALL_VERSIONS=$(echo "$ALL_VERSIONS" | jq --argjson e "$entry" '. += [$e]')
+          done
           # ─────────────────────────────────────────────────────────────────
 
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
@@ -38,23 +52,42 @@ jobs:
             VERSIONS="[]"
             for row in $(echo "$ALL_VERSIONS" | jq -c '.[]'); do
               dir=$(echo "$row" | jq -r '.php_dir')
-              if git diff --name-only HEAD~1 HEAD | grep -q "^prod/laravel/${dir}/"; then
+              NEW_VER=$(jq -r '.version' "prod/laravel/${dir}/config.json")
+              OLD_VER=$(git show HEAD~1:"prod/laravel/${dir}/config.json" 2>/dev/null | jq -r '.version // ""')
+              if [[ "$NEW_VER" != "$OLD_VER" ]]; then
                 VERSIONS=$(echo "$VERSIONS" | jq ". += [$row]")
               fi
             done
           fi
 
-          BUILD_MATRIX=$(echo "$VERSIONS" | jq -c --argjson nodes "$NODE_VERSIONS" '{
-            php_version: [.[].php_version],
-            node_version: $nodes,
-            runner: ["ubuntu-latest", "ubuntu-24-arm"],
-            include: map({php_version, php_dir, default_node, is_latest})
+          BUILD_MATRIX=$(echo "$VERSIONS" | jq -c '{
+            include: [
+              .[] | . as $e |
+              $e.node_versions[] | . as $node |
+              (["ubuntu-latest", "ubuntu-24-arm"][] | {
+                php_version: $e.php_version,
+                php_dir: $e.php_dir,
+                node_version: $node,
+                default_node: $e.default_node,
+                is_latest: $e.is_latest,
+                image_version: $e.image_version,
+                runner: .
+              })
+            ]
           }')
 
-          MERGE_MATRIX=$(echo "$VERSIONS" | jq -c --argjson nodes "$NODE_VERSIONS" '{
-            php_version: [.[].php_version],
-            node_version: $nodes,
-            include: map({php_version, php_dir, default_node, is_latest})
+          MERGE_MATRIX=$(echo "$VERSIONS" | jq -c '{
+            include: [
+              .[] | . as $e |
+              $e.node_versions[] | {
+                php_version: $e.php_version,
+                php_dir: $e.php_dir,
+                node_version: .,
+                default_node: $e.default_node,
+                is_latest: $e.is_latest,
+                image_version: $e.image_version
+              }
+            ]
           }')
 
           echo "build_matrix=${BUILD_MATRIX}" >> "$GITHUB_OUTPUT"

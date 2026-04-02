@@ -40,11 +40,12 @@ jobs:
           IMAGE="ghcr.io/${{ inputs.image_name }}"
           PHP="${{ matrix.php_version }}"
           NODE="${{ matrix.node_version }}"
+          VER="${{ matrix.image_version }}"
 
-          TAGS="${IMAGE}:php${PHP}-node${NODE}"
+          TAGS="${IMAGE}:php${PHP}-node${NODE},${IMAGE}:php${PHP}-node${NODE}-${VER}"
 
           if [[ "${NODE}" == "${{ matrix.default_node }}" ]]; then
-            TAGS="${TAGS},${IMAGE}:php${PHP}"
+            TAGS="${TAGS},${IMAGE}:php${PHP},${IMAGE}:php${PHP}-${VER}"
           fi
 
           if [[ "${{ matrix.is_latest }}" == "true" && "${NODE}" == "${{ matrix.default_node }}" ]]; then

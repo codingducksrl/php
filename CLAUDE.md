@@ -12,22 +12,34 @@ There is no local build or test command — all builds run through GitHub Action
 
 ```
 prod/laravel/
-  php84/   Dockerfile + docker-php-entrypoint  (PHP 8.4 image)
-  php85/   Dockerfile + docker-php-entrypoint  (PHP 8.5 image)
-.github/workflows/build-prod.yml              CI pipeline
+  php84/   Dockerfile + docker-php-entrypoint + config.json  (PHP 8.4 image)
+  php85/   Dockerfile + docker-php-entrypoint + config.json  (PHP 8.5 image)
+.github/workflows/build-prod.yml                             CI pipeline
 ```
 
 The `dev/` directory is reserved for future development images and does not yet exist.
 
 ## CI/CD architecture
 
-The workflow builds a `php_version × node_version × arch` matrix — 12 parallel build jobs (2 PHP × 3 Node × 2 arch), then 6 manifest-merge jobs. amd64 and arm64 are built natively on separate runners (`ubuntu-latest` / `ubuntu-24-arm`) to avoid QEMU. Arch-specific tags (e.g. `php8.4-node22-amd64`) are merged into multi-arch manifests with `docker buildx imagetools create`. No secrets need configuring; the workflow uses `GITHUB_TOKEN` with `packages: write`.
+The `detect` job auto-discovers PHP versions by globbing `prod/laravel/php*/config.json` and builds an explicit matrix from each file's `node_versions`, `default_node`, and `is_latest` fields. amd64 and arm64 are built natively on separate runners (`ubuntu-latest` / `ubuntu-24-arm`) to avoid QEMU. Arch-specific tags (e.g. `php8.4-node22-amd64`) are merged into multi-arch manifests with `docker buildx imagetools create`. No secrets need configuring; the workflow uses `GITHUB_TOKEN` with `packages: write`.
+
+A build is only triggered for a PHP version if its `config.json` version string changed (compared to `HEAD~1`). `workflow_dispatch` always builds all versions.
 
 ## Adding a new PHP version
 
 1. Create `prod/laravel/php<XY>/Dockerfile` and `docker-php-entrypoint` (copy from an existing version and adjust).
-2. In `.github/workflows/build-prod.yml`, add the new version to the `php_version` array and an `include` block (with `php_dir` and `default_node`) in **both** the `build` and `merge` jobs.
-3. Update the `latest` tag condition in the `Compute final tags` step of the `merge` job to point to the new version.
+2. Create `prod/laravel/php<XY>/config.json` with the version string, node versions to build, default node, and whether this is the `latest` alias:
+   ```json
+   {
+     "version": "1.0.0",
+     "node_versions": [20, 22, 24],
+     "default_node": 24,
+     "is_latest": true
+   }
+   ```
+3. If this version should become `latest`, set `"is_latest": false` in the previous version's `config.json`.
+
+The workflow auto-discovers all `prod/laravel/php*/config.json` files — no changes to the CI pipeline are needed.
 
 ## Entrypoint behaviour
 

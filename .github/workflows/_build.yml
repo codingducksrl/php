@@ -57,5 +57,4 @@ jobs:
           tags: ghcr.io/${{ inputs.image_name }}:php${{ matrix.php_version }}-node${{ matrix.node_version }}-${{ steps.platform.outputs.arch }}
           build-args: |
             NODE_VERSION=${{ matrix.node_version }}
-          cache-from: type=gha,scope=prod-${{ matrix.php_dir }}-node${{ matrix.node_version }}-${{ steps.platform.outputs.arch }}
-          cache-to: type=gha,mode=max,scope=prod-${{ matrix.php_dir }}-node${{ matrix.node_version }}-${{ steps.platform.outputs.arch }}
+          no-cache: true
