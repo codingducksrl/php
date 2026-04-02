@@ -16,6 +16,7 @@ jobs:
       build_matrix: ${{ steps.filter.outputs.build_matrix }}
       merge_matrix: ${{ steps.filter.outputs.merge_matrix }}
       image_name: ${{ steps.filter.outputs.image_name }}
+      has_builds: ${{ steps.filter.outputs.has_builds }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -90,12 +91,16 @@ jobs:
             ]
           }')
 
+          HAS_BUILDS=$(echo "$BUILD_MATRIX" | jq 'if (.include | length) > 0 then "true" else "false" end' -r)
+
           echo "build_matrix=${BUILD_MATRIX}" >> "$GITHUB_OUTPUT"
           echo "merge_matrix=${MERGE_MATRIX}" >> "$GITHUB_OUTPUT"
           echo "image_name=${{ github.repository_owner }}/laravel-php" >> "$GITHUB_OUTPUT"
+          echo "has_builds=${HAS_BUILDS}" >> "$GITHUB_OUTPUT"
 
   build:
     needs: detect
+    if: needs.detect.outputs.has_builds == 'true'
     uses: ./.github/workflows/_build.yml
     with:
       matrix: ${{ needs.detect.outputs.build_matrix }}
@@ -104,6 +109,7 @@ jobs:
 
   merge:
     needs: [detect, build]
+    if: needs.detect.outputs.has_builds == 'true'
     uses: ./.github/workflows/_merge.yml
     with:
       matrix: ${{ needs.detect.outputs.merge_matrix }}
