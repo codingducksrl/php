@@ -1,0 +1,18 @@
+#!/bin/sh
+set -e
+
+if [ -d "/init.d" ]; then
+  for script in /init.d/*; do
+    if [ -f "$script" -a -x "$script" ]; then
+      echo "Running $script"
+      "$script"
+    fi
+  done
+fi
+
+# first arg is `-f` or `--some-option`
+if [ "${1#-}" != "$1" ]; then
+	set -- frankenphp run "$@"
+fi
+echo "Running command: $@"
+exec "$@"

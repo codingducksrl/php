@@ -1,0 +1,141 @@
+name: Build Prod Docker Images
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "prod/**"
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  # Image name: ghcr.io/<owner>/laravel-php
+  IMAGE_NAME: ${{ github.repository_owner }}/laravel-php
+
+jobs:
+  build:
+    name: "PHP ${{ matrix.php_version }} / Node ${{ matrix.node_version }} (${{ matrix.runner }})"
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      packages: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        php_version: ["8.4", "8.5"]
+        node_version: [20, 22, 24]
+        runner: [ubuntu-latest, ubuntu-24-arm]
+        include:
+          - php_version: "8.4"
+            php_dir: php84
+            default_node: 22
+          - php_version: "8.5"
+            php_dir: php85
+            default_node: 24
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set platform info
+        id: platform
+        run: |
+          if [[ "${{ matrix.runner }}" == "ubuntu-latest" ]]; then
+            echo "arch=amd64" >> "$GITHUB_OUTPUT"
+            echo "platform=linux/amd64" >> "$GITHUB_OUTPUT"
+          else
+            echo "arch=arm64" >> "$GITHUB_OUTPUT"
+            echo "platform=linux/arm64" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build and push (arch-specific)
+        uses: docker/build-push-action@v7
+        with:
+          context: prod/laravel/${{ matrix.php_dir }}
+          file: prod/laravel/${{ matrix.php_dir }}/Dockerfile
+          platforms: ${{ steps.platform.outputs.platform }}
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:php${{ matrix.php_version }}-node${{ matrix.node_version }}-${{ steps.platform.outputs.arch }}
+          build-args: |
+            NODE_VERSION=${{ matrix.node_version }}
+          cache-from: type=gha,scope=prod-${{ matrix.php_dir }}-node${{ matrix.node_version }}-${{ steps.platform.outputs.arch }}
+          cache-to: type=gha,mode=max,scope=prod-${{ matrix.php_dir }}-node${{ matrix.node_version }}-${{ steps.platform.outputs.arch }}
+
+  merge:
+    name: "Merge PHP ${{ matrix.php_version }} / Node ${{ matrix.node_version }}"
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        php_version: ["8.4", "8.5"]
+        node_version: [20, 22, 24]
+        include:
+          - php_version: "8.4"
+            php_dir: php84
+            default_node: 22
+          - php_version: "8.5"
+            php_dir: php85
+            default_node: 24
+
+    steps:
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v6
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Compute final tags
+        id: meta
+        shell: bash
+        run: |
+          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
+          PHP="${{ matrix.php_version }}"
+          NODE="${{ matrix.node_version }}"
+
+          TAGS="${IMAGE}:php${PHP}-node${NODE}"
+
+          if [[ "${NODE}" == "${{ matrix.default_node }}" ]]; then
+            TAGS="${TAGS},${IMAGE}:php${PHP}"
+          fi
+
+          if [[ "${PHP}" == "8.5" && "${NODE}" == "24" ]]; then
+            TAGS="${TAGS},${IMAGE}:latest"
+          fi
+
+          echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
+
+      - name: Create and push multi-arch manifest
+        shell: bash
+        run: |
+          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
+          PHP="${{ matrix.php_version }}"
+          NODE="${{ matrix.node_version }}"
+
+          AMD="${IMAGE}:php${PHP}-node${NODE}-amd64"
+          ARM="${IMAGE}:php${PHP}-node${NODE}-arm64"
+
+          IFS=',' read -ra TAG_LIST <<< "${{ steps.meta.outputs.tags }}"
+          for TAG in "${TAG_LIST[@]}"; do
+            docker buildx imagetools create -t "${TAG}" "${AMD}" "${ARM}"
+          done
