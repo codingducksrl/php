@@ -58,3 +58,5 @@ jobs:
           build-args: |
             NODE_VERSION=${{ matrix.node_version }}
           no-cache: true
+          provenance: true
+          sbom: true

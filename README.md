@@ -12,7 +12,7 @@ docker pull ghcr.io/codingducksrl/laravel-php:latest
 
 # Pin to a specific PHP + Node combination
 docker pull ghcr.io/codingducksrl/laravel-php:php8.4-node22
-docker pull ghcr.io/codingducksrl/laravel-php:php8.5-node20
+docker pull ghcr.io/codingducksrl/laravel-php:php8.5-node24
 
 # Pin to a specific image version (recommended for production)
 docker pull ghcr.io/codingducksrl/laravel-php:php8.5-node24-1.0.0
@@ -34,11 +34,9 @@ RUN composer install --no-dev --optimize-autoloader
 
 | Image | PHP | Node | Tag type |
 |-------|-----|------|----------|
-| `ghcr.io/codingducksrl/laravel-php:php8.4-node20` | 8.4 | 20 | specific |
 | `ghcr.io/codingducksrl/laravel-php:php8.4-node22` | 8.4 | 22 | specific |
 | `ghcr.io/codingducksrl/laravel-php:php8.4-node24` | 8.4 | 24 | specific |
 | `ghcr.io/codingducksrl/laravel-php:php8.4` | 8.4 | 22 | PHP alias |
-| `ghcr.io/codingducksrl/laravel-php:php8.5-node20` | 8.5 | 20 | specific |
 | `ghcr.io/codingducksrl/laravel-php:php8.5-node22` | 8.5 | 22 | specific |
 | `ghcr.io/codingducksrl/laravel-php:php8.5-node24` | 8.5 | 24 | specific |
 | `ghcr.io/codingducksrl/laravel-php:php8.5` | 8.5 | 24 | PHP alias |
@@ -62,7 +60,7 @@ RUN composer install --no-dev --optimize-autoloader
 | [FrankenPHP](https://frankenphp.dev/) | latest for the PHP release |
 | PHP | 8.4 or 8.5 |
 | Composer | 2 |
-| Node.js | 20 / 22 / 24 (matrix) |
+| Node.js | 22 / 24 (matrix) |
 | ffmpeg | system latest |
 
 ### PHP extensions

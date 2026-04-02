@@ -68,3 +68,26 @@ jobs:
           for TAG in "${TAG_LIST[@]}"; do
             docker buildx imagetools create -t "${TAG}" "${AMD}" "${ARM}"
           done
+
+      - name: Delete arch-specific intermediate tags
+        continue-on-error: true
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          OWNER="${{ github.repository_owner }}"
+          PACKAGE="laravel-php"
+          PHP="${{ matrix.php_version }}"
+          NODE="${{ matrix.node_version }}"
+
+          for ARCH in amd64 arm64; do
+            TAG="php${PHP}-node${NODE}-${ARCH}"
+            VERSION_ID=$(gh api "orgs/${OWNER}/packages/container/${PACKAGE}/versions" \
+              --jq ".[] | select(.metadata.container.tags[] == \"${TAG}\") | .id" 2>/dev/null || \
+              gh api "users/${OWNER}/packages/container/${PACKAGE}/versions" \
+              --jq ".[] | select(.metadata.container.tags[] == \"${TAG}\") | .id" 2>/dev/null || true)
+            if [[ -n "$VERSION_ID" ]]; then
+              gh api --method DELETE "orgs/${OWNER}/packages/container/${PACKAGE}/versions/${VERSION_ID}" 2>/dev/null || \
+              gh api --method DELETE "users/${OWNER}/packages/container/${PACKAGE}/versions/${VERSION_ID}" 2>/dev/null || true
+            fi
+          done
