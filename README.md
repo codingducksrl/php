@@ -1,6 +1,6 @@
 # PHP Docker Images
 
-Production-ready Docker images for Laravel applications, built on [FrankenPHP](https://frankenphp.dev/) with Node.js support. Images are published to the GitHub Container Registry (GHCR).
+Production-ready Docker images for Laravel applications, built on [FrankenPHP](https://frankenphp.dev/) with Node.js support. Images are published to the GitHub Container Registry (GHCR) as multi-arch manifests supporting `linux/amd64` and `linux/arm64`.
 
 ---
 
@@ -96,11 +96,13 @@ Builds and pushes all production images to GHCR.
 - Push to `main` when any file under `prod/` changes.
 - Manual dispatch via the GitHub Actions UI (`workflow_dispatch`).
 
-**Matrix:** `php_version × node_version` → 6 parallel builds (2 PHP versions × 3 Node versions). Builds run with `fail-fast: false`, so a single failure does not cancel the others.
+**Matrix:** `php_version × node_version × arch` → 12 parallel build jobs (2 PHP versions × 3 Node versions × 2 architectures), followed by 6 manifest-merge jobs. Builds run with `fail-fast: false`, so a single failure does not cancel the others.
+
+**Multi-arch strategy:** amd64 and arm64 are built natively on separate runners (`ubuntu-latest` and `ubuntu-24-arm`) to avoid slow QEMU emulation. Each build job pushes an arch-specific intermediate tag (e.g. `php8.4-node22-amd64`). Once both arches are pushed, a `merge` job combines them into a single multi-arch manifest list using `docker buildx imagetools create`.
 
 **Permissions required:** the workflow uses `GITHUB_TOKEN` with `packages: write` — no secrets need to be configured manually.
 
-**Layer caching:** GitHub Actions cache is used, scoped per `php_dir + node_version`. Subsequent runs only rebuild layers that have changed.
+**Layer caching:** GitHub Actions cache is used, scoped per `php_dir + node_version + arch`. Subsequent runs only rebuild layers that have changed.
 
 ---
 
@@ -113,11 +115,12 @@ Builds and pushes all production images to GHCR.
    └── docker-php-entrypoint
    ```
 
-2. Add an entry to the `include` block in `.github/workflows/build-prod.yml`:
+2. Add an entry to the `include` block in **both** the `build` and `merge` jobs in `.github/workflows/build-prod.yml`:
    ```yaml
    matrix:
      php_version: ["8.4", "8.5", "8.6"]   # add version here
      node_version: [20, 22, 24]
+     runner: [ubuntu-latest, ubuntu-24-arm]  # build job only
      include:
        - php_version: "8.4"
          php_dir: php84
@@ -130,7 +133,7 @@ Builds and pushes all production images to GHCR.
          default_node: 24
    ```
 
-3. Update the `latest` tag condition in the `Compute image tags` step to point to the new version.
+3. Update the `latest` tag condition in the `Compute final tags` step (in the `merge` job) to point to the new version.
 
 The new version will be built for all three Node variants automatically.
 
