@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0",
+  "version": "1.0.1",
   "node_versions": [22, 24],
   "default_node": 24,
   "is_latest": true
