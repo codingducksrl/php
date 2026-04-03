@@ -15,7 +15,6 @@ jobs:
     outputs:
       build_matrix: ${{ steps.filter.outputs.build_matrix }}
       merge_matrix: ${{ steps.filter.outputs.merge_matrix }}
-      image_name: ${{ steps.filter.outputs.image_name }}
       has_builds: ${{ steps.filter.outputs.has_builds }}
     steps:
       - uses: actions/checkout@v6
@@ -25,10 +24,18 @@ jobs:
       - name: Determine versions to build
         id: filter
         run: |
-          # ── Auto-discover PHP versions from folder structure ──────────────
+          # ── Auto-discover all image types from folder structure ──────────
           ALL_VERSIONS='[]'
-          for config_file in prod/laravel/php*/config.json; do
-            dir=$(dirname "$config_file" | xargs basename)
+          for config_file in prod/*/php*/config.json; do
+            dir=$(basename "$(dirname "$config_file")")
+            image_type=$(basename "$(dirname "$(dirname "$config_file")")")
+            prod_path="prod/${image_type}/${dir}"
+            if [[ "$image_type" == "laravel" ]]; then
+              package_name="laravel-php"
+            else
+              package_name="laravel-${image_type}"
+            fi
+            image_name="${GITHUB_REPOSITORY_OWNER}/${package_name}"
             php_version=$(echo "$dir" | sed 's/php\([0-9]\)\([0-9]*\)/\1.\2/')
             config=$(cat "$config_file")
             ver=$(echo "$config" | jq -r '.version')
@@ -42,7 +49,10 @@ jobs:
               --argjson default_node "$default_node" \
               --argjson is_latest "$is_latest" \
               --argjson node_versions "$node_versions" \
-              '{php_version: $php_version, php_dir: $php_dir, image_version: $ver, default_node: $default_node, is_latest: $is_latest, node_versions: $node_versions}')
+              --arg prod_path "$prod_path" \
+              --arg image_name "$image_name" \
+              --arg package_name "$package_name" \
+              '{php_version: $php_version, php_dir: $php_dir, image_version: $ver, default_node: $default_node, is_latest: $is_latest, node_versions: $node_versions, prod_path: $prod_path, image_name: $image_name, package_name: $package_name}')
             ALL_VERSIONS=$(echo "$ALL_VERSIONS" | jq --argjson e "$entry" '. += [$e]')
           done
           # ─────────────────────────────────────────────────────────────────
@@ -52,9 +62,9 @@ jobs:
           else
             VERSIONS="[]"
             for row in $(echo "$ALL_VERSIONS" | jq -c '.[]'); do
-              dir=$(echo "$row" | jq -r '.php_dir')
-              NEW_VER=$(jq -r '.version' "prod/laravel/${dir}/config.json")
-              OLD_VER=$(git show HEAD~1:"prod/laravel/${dir}/config.json" 2>/dev/null | jq -r '.version // ""')
+              prod_path=$(echo "$row" | jq -r '.prod_path')
+              NEW_VER=$(jq -r '.version' "${prod_path}/config.json")
+              OLD_VER=$(git show HEAD~1:"${prod_path}/config.json" 2>/dev/null | jq -r '.version // ""')
               if [[ "$NEW_VER" != "$OLD_VER" ]]; then
                 VERSIONS=$(echo "$VERSIONS" | jq ". += [$row]")
               fi
@@ -72,6 +82,9 @@ jobs:
                 default_node: $e.default_node,
                 is_latest: $e.is_latest,
                 image_version: $e.image_version,
+                prod_path: $e.prod_path,
+                image_name: $e.image_name,
+                package_name: $e.package_name,
                 runner: .
               })
             ]
@@ -86,7 +99,10 @@ jobs:
                 node_version: .,
                 default_node: $e.default_node,
                 is_latest: $e.is_latest,
-                image_version: $e.image_version
+                image_version: $e.image_version,
+                prod_path: $e.prod_path,
+                image_name: $e.image_name,
+                package_name: $e.package_name
               }
             ]
           }')
@@ -95,7 +111,6 @@ jobs:
 
           echo "build_matrix=${BUILD_MATRIX}" >> "$GITHUB_OUTPUT"
           echo "merge_matrix=${MERGE_MATRIX}" >> "$GITHUB_OUTPUT"
-          echo "image_name=${{ github.repository_owner }}/laravel-php" >> "$GITHUB_OUTPUT"
           echo "has_builds=${HAS_BUILDS}" >> "$GITHUB_OUTPUT"
 
   build:
@@ -104,7 +119,6 @@ jobs:
     uses: ./.github/workflows/_build.yml
     with:
       matrix: ${{ needs.detect.outputs.build_matrix }}
-      image_name: ${{ needs.detect.outputs.image_name }}
     secrets: inherit
 
   merge:
@@ -113,5 +127,4 @@ jobs:
     uses: ./.github/workflows/_merge.yml
     with:
       matrix: ${{ needs.detect.outputs.merge_matrix }}
-      image_name: ${{ needs.detect.outputs.image_name }}
     secrets: inherit

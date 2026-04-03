@@ -1,0 +1,6 @@
+{
+  "version": "1.0.0",
+  "node_versions": [22, 24],
+  "default_node": 22,
+  "is_latest": false
+}

@@ -5,14 +5,27 @@
 ```
 .
 ├── prod/
-│   └── laravel/
+│   ├── laravel/                        # FrankenPHP production images → ghcr.io/codingducksrl/laravel-php
+│   │   ├── php84/
+│   │   │   ├── Dockerfile              # PHP 8.4 FrankenPHP image
+│   │   │   ├── docker-php-entrypoint  # Custom entrypoint script
+│   │   │   └── config.json            # Version + node versions config
+│   │   └── php85/
+│   │       ├── Dockerfile              # PHP 8.5 FrankenPHP image
+│   │       ├── docker-php-entrypoint  # Custom entrypoint script
+│   │       └── config.json            # Version + node versions config
+│   └── sail/                           # Laravel Sail development images → ghcr.io/codingducksrl/laravel-sail
 │       ├── php84/
-│       │   ├── Dockerfile              # PHP 8.4 production image
-│       │   ├── docker-php-entrypoint  # Custom entrypoint script
+│       │   ├── Dockerfile              # PHP 8.4 Sail image (Ubuntu 24.04 + supervisord)
+│       │   ├── start-container        # Entrypoint script
+│       │   ├── supervisord.conf       # Supervisor process config
+│       │   ├── php.ini                # PHP CLI config
 │       │   └── config.json            # Version + node versions config
 │       └── php85/
-│           ├── Dockerfile              # PHP 8.5 production image
-│           ├── docker-php-entrypoint  # Custom entrypoint script
+│           ├── Dockerfile              # PHP 8.5 Sail image (Ubuntu 24.04 + supervisord)
+│           ├── start-container        # Entrypoint script
+│           ├── supervisord.conf       # Supervisor process config
+│           ├── php.ini                # PHP CLI config
 │           └── config.json            # Version + node versions config
 └── .github/
     └── workflows/
@@ -35,7 +48,7 @@ Builds and pushes all production images to GHCR.
 - Push to `main` when any file under `prod/` changes.
 - Manual dispatch via the GitHub Actions UI (`workflow_dispatch`).
 
-**Matrix:** `php_version × node_version × arch` — dynamically built from each `config.json`, currently 12 parallel build jobs (2 PHP versions × 3 Node versions × 2 architectures), followed by 6 manifest-merge jobs. Builds run with `fail-fast: false`, so a single failure does not cancel the others.
+**Matrix:** `image_type × php_version × node_version × arch` — dynamically built from each `config.json` discovered under `prod/*/php*/`. Currently 20 parallel build jobs ((2 laravel + 2 sail) × node versions × 2 architectures), followed by 10 manifest-merge jobs. Builds run with `fail-fast: false`, so a single failure does not cancel the others.
 
 **Multi-arch strategy:** amd64 and arm64 are built natively on separate runners (`ubuntu-latest` and `ubuntu-24-arm`) to avoid slow QEMU emulation. Each build job pushes an arch-specific intermediate tag (e.g. `php8.4-node22-amd64`). Once both arches are pushed, a `merge` job combines them into a single multi-arch manifest list using `docker buildx imagetools create`.
 
@@ -69,20 +82,18 @@ A build is only triggered for a PHP version if its `config.json` version string 
 
 ## Adding a new PHP version
 
-1. Create the directory and files:
-   ```
-   prod/laravel/php86/
-   ├── Dockerfile
-   ├── docker-php-entrypoint
-   └── config.json
-   ```
-   Copy from an existing version and adjust the PHP version number.
+The steps are the same for both image families.
+
+1. Create the directory and files under the appropriate `prod/<type>/php<XY>/` path. Copy from an existing version and adjust the PHP version number.
+
+   For `laravel`: `Dockerfile`, `docker-php-entrypoint`, `config.json`
+   For `sail`: `Dockerfile`, `start-container`, `supervisord.conf`, `php.ini`, `config.json`
 
 2. Write `config.json` for the new version:
    ```json
    {
      "version": "1.0.0",
-     "node_versions": [20, 22, 24],
+     "node_versions": [22, 24],
      "default_node": 24,
      "is_latest": true
    }
@@ -90,4 +101,4 @@ A build is only triggered for a PHP version if its `config.json` version string 
 
 3. If this version should become `latest`, set `"is_latest": false` in the previous version's `config.json`.
 
-No changes to the CI pipeline are needed — the workflow auto-discovers all `prod/laravel/php*/config.json` files.
+No changes to the CI pipeline are needed — the workflow auto-discovers all `prod/*/php*/config.json` files.

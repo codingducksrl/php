@@ -6,9 +6,6 @@ on:
       matrix:
         required: true
         type: string
-      image_name:
-        required: true
-        type: string
 
 jobs:
   merge:
@@ -37,7 +34,7 @@ jobs:
         id: meta
         shell: bash
         run: |
-          IMAGE="ghcr.io/${{ inputs.image_name }}"
+          IMAGE="ghcr.io/${{ matrix.image_name }}"
           PHP="${{ matrix.php_version }}"
           NODE="${{ matrix.node_version }}"
           VER="${{ matrix.image_version }}"
@@ -57,7 +54,7 @@ jobs:
       - name: Create and push multi-arch manifest
         shell: bash
         run: |
-          IMAGE="ghcr.io/${{ inputs.image_name }}"
+          IMAGE="ghcr.io/${{ matrix.image_name }}"
           PHP="${{ matrix.php_version }}"
           NODE="${{ matrix.node_version }}"
 
@@ -76,7 +73,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           OWNER="${{ github.repository_owner }}"
-          PACKAGE="laravel-php"
+          PACKAGE="${{ matrix.package_name }}"
           PHP="${{ matrix.php_version }}"
           NODE="${{ matrix.node_version }}"
 

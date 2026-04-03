@@ -6,9 +6,6 @@ on:
       matrix:
         required: true
         type: string
-      image_name:
-        required: true
-        type: string
 
 jobs:
   build:
@@ -50,11 +47,11 @@ jobs:
       - name: Build and push (arch-specific)
         uses: docker/build-push-action@v7
         with:
-          context: prod/laravel/${{ matrix.php_dir }}
-          file: prod/laravel/${{ matrix.php_dir }}/Dockerfile
+          context: ${{ matrix.prod_path }}
+          file: ${{ matrix.prod_path }}/Dockerfile
           platforms: ${{ steps.platform.outputs.platform }}
           push: true
-          tags: ghcr.io/${{ inputs.image_name }}:php${{ matrix.php_version }}-node${{ matrix.node_version }}-${{ steps.platform.outputs.arch }}
+          tags: ghcr.io/${{ matrix.image_name }}:php${{ matrix.php_version }}-node${{ matrix.node_version }}-${{ steps.platform.outputs.arch }}
           build-args: |
             NODE_VERSION=${{ matrix.node_version }}
           no-cache: true
