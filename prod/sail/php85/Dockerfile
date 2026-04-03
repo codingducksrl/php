@@ -76,16 +76,16 @@ RUN apt-get update && apt-get upgrade -y \
 
 RUN setcap "cap_net_bind_service=+ep" /usr/bin/php8.5
 
-RUN userdel -r ubuntu
-RUN groupadd --force -g $WWWGROUP sail
-RUN useradd -ms /bin/bash --no-user-group -g $WWWGROUP -u 1337 sail
-RUN git config --global --add safe.directory /var/www/html
-
-COPY start-container /usr/local/bin/start-container
-COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
-COPY php.ini /etc/php/8.5/cli/conf.d/99-sail.ini
-RUN chmod +x /usr/local/bin/start-container
+#RUN userdel -r ubuntu
+#RUN groupadd --force -g $WWWGROUP sail
+#RUN useradd -ms /bin/bash --no-user-group -g $WWWGROUP -u 1337 sail
+#RUN git config --global --add safe.directory /var/www/html
+#
+#COPY start-container /usr/local/bin/start-container
+#COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+#COPY php.ini /etc/php/8.5/cli/conf.d/99-sail.ini
+#RUN chmod +x /usr/local/bin/start-container
 
 EXPOSE 80/tcp
 
-ENTRYPOINT ["start-container"]
+#ENTRYPOINT ["start-container"]
