@@ -39,6 +39,9 @@ RUN composer install --no-dev --optimize-autoloader
 
 | Tag | PHP | Node | Type |
 |-----|-----|------|------|
+| `php8.3-node20` | 8.3 | 20 | specific |
+| `php8.3-node22` | 8.3 | 22 | specific |
+| `php8.3` | 8.3 | 22 | PHP alias |
 | `php8.4-node22` | 8.4 | 22 | specific |
 | `php8.4-node24` | 8.4 | 24 | specific |
 | `php8.4` | 8.4 | 22 | PHP alias |
@@ -52,9 +55,9 @@ RUN composer install --no-dev --optimize-autoloader
 | Component | Details |
 |-----------|---------|
 | [FrankenPHP](https://frankenphp.dev/) | latest for the PHP release |
-| PHP | 8.4 or 8.5 |
+| PHP | 8.3, 8.4, or 8.5 |
 | Composer | 2 |
-| Node.js | 22 / 24 |
+| Node.js | 20 / 22 / 24 |
 | ffmpeg | system latest |
 
 PHP extensions: `bcmath`, `exif`, `gd`, `igbinary`, `imagick`, `intl`, `mysqli`, `opcache`, `pdo`, `pdo_mysql`, `pdo_pgsql`, `pgsql`, `redis`, `sockets`, `zip`, `pcntl`

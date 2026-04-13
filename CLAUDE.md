@@ -6,8 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A Docker image repository for Laravel applications with two image families:
 
-- **`laravel-php`** — production images built on [FrankenPHP](https://frankenphp.dev/) with PHP (8.4/8.5) and Node.js (20/22/24), published to GHCR as `ghcr.io/codingducksrl/laravel-php`.
-- **`laravel-sail`** — development images (Ubuntu 24.04 + supervisord, matching Laravel Sail) with PHP (8.4/8.5) and Node.js (22/24), published to GHCR as `ghcr.io/codingducksrl/laravel-sail`.
+- **`laravel-php`** — production images built on [FrankenPHP](https://frankenphp.dev/) with PHP (8.3/8.4/8.5) and Node.js (20/22/24), published to GHCR as `ghcr.io/codingducksrl/laravel-php`.
+- **`laravel-sail`** — development images (Ubuntu 24.04 + supervisord, matching Laravel Sail) with PHP (8.3/8.4/8.5) and Node.js (22/24), published to GHCR as `ghcr.io/codingducksrl/laravel-sail`.
 
 There is no local build or test command — all builds run through GitHub Actions (`.github/workflows/build-prod.yml`). To trigger a build, push to `main` with changes under `prod/`, or use `workflow_dispatch` from the GitHub Actions UI.
 
@@ -15,9 +15,11 @@ There is no local build or test command — all builds run through GitHub Action
 
 ```
 prod/laravel/
+  php83/   Dockerfile + docker-php-entrypoint + config.json  (PHP 8.3 FrankenPHP image)
   php84/   Dockerfile + docker-php-entrypoint + config.json  (PHP 8.4 FrankenPHP image)
   php85/   Dockerfile + docker-php-entrypoint + config.json  (PHP 8.5 FrankenPHP image)
 prod/sail/
+  php83/   Dockerfile + start-container + supervisord.conf + php.ini + config.json  (PHP 8.3 Sail image)
   php84/   Dockerfile + start-container + supervisord.conf + php.ini + config.json  (PHP 8.4 Sail image)
   php85/   Dockerfile + start-container + supervisord.conf + php.ini + config.json  (PHP 8.5 Sail image)
 .github/workflows/build-prod.yml                             CI pipeline
@@ -55,10 +57,18 @@ The workflow auto-discovers all `prod/*/php*/config.json` files — no changes t
 
 **laravel-sail:** `start-container` launches supervisord, which runs PHP via `artisan serve`. The `WWWGROUP` build arg must be passed at build time (typically `$(id -g)` from docker-compose) to set the `sail` user's group ID.
 
+## Documentation
+
+Whenever you make changes to this repository — adding or removing PHP versions, changing Node versions, updating image families, etc. — always update **all three** documentation files:
+
+- `README.md` — user-facing docs (available tags, what's included)
+- `CONTRIBUTING.md` — repository structure tree and CI matrix job counts
+- `CLAUDE.md` — this file (image families, repository structure section)
+
 ## Image tag convention
 
 Tags are the same for both image families (applied to their respective GHCR packages):
 
 - `php8.4-node22` / `php8.4-node24` / … — specific combination (recommended for production)
-- `php8.4` / `php8.5` — PHP alias → default Node (22 for 8.4, 24 for 8.5)
+- `php8.3` / `php8.4` / `php8.5` — PHP alias → default Node (22 for 8.3/8.4, 24 for 8.5)
 - `latest` — newest PHP at its default Node (currently PHP 8.5, Node 24)

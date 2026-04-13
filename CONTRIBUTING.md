@@ -6,6 +6,10 @@
 .
 ├── prod/
 │   ├── laravel/                        # FrankenPHP production images → ghcr.io/codingducksrl/laravel-php
+│   │   ├── php83/
+│   │   │   ├── Dockerfile              # PHP 8.3 FrankenPHP image
+│   │   │   ├── docker-php-entrypoint  # Custom entrypoint script
+│   │   │   └── config.json            # Version + node versions config
 │   │   ├── php84/
 │   │   │   ├── Dockerfile              # PHP 8.4 FrankenPHP image
 │   │   │   ├── docker-php-entrypoint  # Custom entrypoint script
@@ -48,7 +52,7 @@ Builds and pushes all production images to GHCR.
 - Push to `main` when any file under `prod/` changes.
 - Manual dispatch via the GitHub Actions UI (`workflow_dispatch`).
 
-**Matrix:** `image_type × php_version × node_version × arch` — dynamically built from each `config.json` discovered under `prod/*/php*/`. Currently 20 parallel build jobs ((2 laravel + 2 sail) × node versions × 2 architectures), followed by 10 manifest-merge jobs. Builds run with `fail-fast: false`, so a single failure does not cancel the others.
+**Matrix:** `image_type × php_version × node_version × arch` — dynamically built from each `config.json` discovered under `prod/*/php*/`. Currently 24 parallel build jobs ((3 laravel + 3 sail) × node versions × 2 architectures), followed by 12 manifest-merge jobs. Builds run with `fail-fast: false`, so a single failure does not cancel the others.
 
 **Multi-arch strategy:** amd64 and arm64 are built natively on separate runners (`ubuntu-latest` and `ubuntu-24-arm`) to avoid slow QEMU emulation. Each build job pushes an arch-specific intermediate tag (e.g. `php8.4-node22-amd64`). Once both arches are pushed, a `merge` job combines them into a single multi-arch manifest list using `docker buildx imagetools create`.
 
