@@ -4,10 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this repo is
 
-A Docker image repository for Laravel applications with two image families:
+A Docker image repository for Laravel applications with four image families:
 
 - **`laravel-php`** — production images built on [FrankenPHP](https://frankenphp.dev/) with PHP (8.3/8.4/8.5) and Node.js (20/22/24), published to GHCR as `ghcr.io/codingducksrl/laravel-php`.
 - **`laravel-sail`** — development images (Ubuntu 24.04 + supervisord, matching Laravel Sail) with PHP (8.3/8.4/8.5) and Node.js (22/24), published to GHCR as `ghcr.io/codingducksrl/laravel-sail`.
+- **`laravel-octane`** — production images for Laravel Octane (serversideup/php FrankenPHP) with PHP 8.5 and Node.js (22/24), published to GHCR as `ghcr.io/codingducksrl/laravel-octane`.
+- **`laravel-sail-octane`** — development images for Laravel Octane (serversideup/php FrankenPHP, runs `octane:start --watch`) with PHP 8.5 and Node.js (22/24), published to GHCR as `ghcr.io/codingducksrl/laravel-sail-octane`.
 
 There is no local build or test command — all builds run through GitHub Actions (`.github/workflows/build-prod.yml`). To trigger a build, push to `main` with changes under `prod/`, or use `workflow_dispatch` from the GitHub Actions UI.
 
@@ -22,6 +24,10 @@ prod/sail/
   php83/   Dockerfile + start-container + supervisord.conf + php.ini + config.json  (PHP 8.3 Sail image)
   php84/   Dockerfile + start-container + supervisord.conf + php.ini + config.json  (PHP 8.4 Sail image)
   php85/   Dockerfile + start-container + supervisord.conf + php.ini + config.json  (PHP 8.5 Sail image)
+prod/octane/
+  php85/   Dockerfile + config.json  (PHP 8.5 Octane production image)
+prod/sail-octane/
+  php85/   Dockerfile + start-container + config.json  (PHP 8.5 Octane development image)
 .github/workflows/build-prod.yml                             CI pipeline
 ```
 
@@ -29,15 +35,19 @@ The `dev/` directory is reserved for future development images and does not yet 
 
 ## CI/CD architecture
 
-The `detect` job auto-discovers all image types by globbing `prod/*/php*/config.json` and builds an explicit matrix from each file's `node_versions`, `default_node`, and `is_latest` fields. The image name (`laravel-php` or `laravel-sail`) is derived from the directory name (`prod/laravel` → `laravel-php`, `prod/sail` → `laravel-sail`). amd64 and arm64 are built natively on separate runners (`ubuntu-latest` / `ubuntu-24-arm`) to avoid QEMU. Arch-specific tags (e.g. `php8.4-node22-amd64`) are merged into multi-arch manifests with `docker buildx imagetools create`. No secrets need configuring; the workflow uses `GITHUB_TOKEN` with `packages: write`.
+The `detect` job auto-discovers all image types by globbing `prod/*/php*/config.json` and builds an explicit matrix from each file's `node_versions`, `default_node`, and `is_latest` fields. The image name is derived from the directory name (`prod/laravel` → `laravel-php`, `prod/sail` → `laravel-sail`, `prod/octane` → `laravel-octane`, `prod/sail-octane` → `laravel-sail-octane`). amd64 and arm64 are built natively on separate runners (`ubuntu-latest` / `ubuntu-24-arm`) to avoid QEMU. Arch-specific tags (e.g. `php8.4-node22-amd64`) are merged into multi-arch manifests with `docker buildx imagetools create`. No secrets need configuring; the workflow uses `GITHUB_TOKEN` with `packages: write`.
 
 A build is only triggered for an image if its `config.json` version string changed (compared to `HEAD~1`). `workflow_dispatch` always builds all versions.
 
 ## Adding a new PHP version
 
-The steps are the same for both image families — just use the appropriate `prod/<type>/` directory.
+The steps are the same for all image families — just use the appropriate `prod/<type>/` directory.
 
-1. Create `prod/laravel/php<XY>/Dockerfile` and `docker-php-entrypoint` (copy from an existing version and adjust), or `prod/sail/php<XY>/` with its files.
+1. Create the directory and required files (copy from an existing version and adjust the PHP version number):
+   - `laravel`: `Dockerfile`, `docker-php-entrypoint`, `config.json`
+   - `sail`: `Dockerfile`, `start-container`, `supervisord.conf`, `php.ini`, `config.json`
+   - `octane`: `Dockerfile`, `config.json`
+   - `sail-octane`: `Dockerfile`, `start-container`, `config.json`
 2. Create `config.json` with the version string, node versions to build, default node, and whether this is the `latest` alias:
    ```json
    {
@@ -57,6 +67,10 @@ The workflow auto-discovers all `prod/*/php*/config.json` files — no changes t
 
 **laravel-sail:** `start-container` launches supervisord, which runs PHP via `artisan serve`. The `WWWGROUP` build arg must be passed at build time (typically `$(id -g)` from docker-compose) to set the `sail` user's group ID.
 
+**laravel-octane:** Uses the serversideup/php base image entrypoint. No custom entrypoint script — extend the image and configure Octane startup in your own Dockerfile or compose file.
+
+**laravel-sail-octane:** `start-container` runs `php artisan octane:start --server=frankenphp --host=0.0.0.0 --port=8000 --watch`. Pass `WWWUSER` at runtime to set the UID; `WWWGROUP` is a build arg.
+
 ## Documentation
 
 Whenever you make changes to this repository — adding or removing PHP versions, changing Node versions, updating image families, etc. — always update **all three** documentation files:
@@ -67,7 +81,7 @@ Whenever you make changes to this repository — adding or removing PHP versions
 
 ## Image tag convention
 
-Tags are the same for both image families (applied to their respective GHCR packages):
+Tags are the same for all image families (applied to their respective GHCR packages):
 
 - `php8.4-node22` / `php8.4-node24` / … — specific combination (recommended for production)
 - `php8.3` / `php8.4` / `php8.5` — PHP alias → default Node (22 for 8.3/8.4, 24 for 8.5)

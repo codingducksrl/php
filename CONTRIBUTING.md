@@ -18,18 +18,33 @@
 │   │       ├── Dockerfile              # PHP 8.5 FrankenPHP image
 │   │       ├── docker-php-entrypoint  # Custom entrypoint script
 │   │       └── config.json            # Version + node versions config
-│   └── sail/                           # Laravel Sail development images → ghcr.io/codingducksrl/laravel-sail
-│       ├── php84/
-│       │   ├── Dockerfile              # PHP 8.4 Sail image (Ubuntu 24.04 + supervisord)
-│       │   ├── start-container        # Entrypoint script
-│       │   ├── supervisord.conf       # Supervisor process config
-│       │   ├── php.ini                # PHP CLI config
-│       │   └── config.json            # Version + node versions config
+│   ├── sail/                           # Laravel Sail development images → ghcr.io/codingducksrl/laravel-sail
+│   │   ├── php83/
+│   │   │   ├── Dockerfile              # PHP 8.3 Sail image (Ubuntu 24.04 + supervisord)
+│   │   │   ├── start-container        # Entrypoint script
+│   │   │   ├── supervisord.conf       # Supervisor process config
+│   │   │   ├── php.ini                # PHP CLI config
+│   │   │   └── config.json            # Version + node versions config
+│   │   ├── php84/
+│   │   │   ├── Dockerfile              # PHP 8.4 Sail image (Ubuntu 24.04 + supervisord)
+│   │   │   ├── start-container        # Entrypoint script
+│   │   │   ├── supervisord.conf       # Supervisor process config
+│   │   │   ├── php.ini                # PHP CLI config
+│   │   │   └── config.json            # Version + node versions config
+│   │   └── php85/
+│   │       ├── Dockerfile              # PHP 8.5 Sail image (Ubuntu 24.04 + supervisord)
+│   │       ├── start-container        # Entrypoint script
+│   │       ├── supervisord.conf       # Supervisor process config
+│   │       ├── php.ini                # PHP CLI config
+│   │       └── config.json            # Version + node versions config
+│   ├── octane/                         # Laravel Octane production images → ghcr.io/codingducksrl/laravel-octane
+│   │   └── php85/
+│   │       ├── Dockerfile              # PHP 8.5 Octane image (serversideup/php FrankenPHP)
+│   │       └── config.json            # Version + node versions config
+│   └── sail-octane/                    # Laravel Octane development images → ghcr.io/codingducksrl/laravel-sail-octane
 │       └── php85/
-│           ├── Dockerfile              # PHP 8.5 Sail image (Ubuntu 24.04 + supervisord)
-│           ├── start-container        # Entrypoint script
-│           ├── supervisord.conf       # Supervisor process config
-│           ├── php.ini                # PHP CLI config
+│           ├── Dockerfile              # PHP 8.5 Sail-Octane image (serversideup/php FrankenPHP)
+│           ├── start-container        # Entrypoint: runs artisan octane:start --watch
 │           └── config.json            # Version + node versions config
 └── .github/
     └── workflows/
@@ -52,7 +67,7 @@ Builds and pushes all production images to GHCR.
 - Push to `main` when any file under `prod/` changes.
 - Manual dispatch via the GitHub Actions UI (`workflow_dispatch`).
 
-**Matrix:** `image_type × php_version × node_version × arch` — dynamically built from each `config.json` discovered under `prod/*/php*/`. Currently 24 parallel build jobs ((3 laravel + 3 sail) × node versions × 2 architectures), followed by 12 manifest-merge jobs. Builds run with `fail-fast: false`, so a single failure does not cancel the others.
+**Matrix:** `image_type × php_version × node_version × arch` — dynamically built from each `config.json` discovered under `prod/*/php*/`. Currently 32 parallel build jobs ((3 laravel + 3 sail + 1 octane + 1 sail-octane) × node versions × 2 architectures), followed by 16 manifest-merge jobs. Builds run with `fail-fast: false`, so a single failure does not cancel the others.
 
 **Multi-arch strategy:** amd64 and arm64 are built natively on separate runners (`ubuntu-latest` and `ubuntu-24-arm`) to avoid slow QEMU emulation. Each build job pushes an arch-specific intermediate tag (e.g. `php8.4-node22-amd64`). Once both arches are pushed, a `merge` job combines them into a single multi-arch manifest list using `docker buildx imagetools create`.
 
@@ -86,12 +101,14 @@ A build is only triggered for a PHP version if its `config.json` version string 
 
 ## Adding a new PHP version
 
-The steps are the same for both image families.
+The steps are the same for all image families.
 
 1. Create the directory and files under the appropriate `prod/<type>/php<XY>/` path. Copy from an existing version and adjust the PHP version number.
 
    For `laravel`: `Dockerfile`, `docker-php-entrypoint`, `config.json`
    For `sail`: `Dockerfile`, `start-container`, `supervisord.conf`, `php.ini`, `config.json`
+   For `octane`: `Dockerfile`, `config.json`
+   For `sail-octane`: `Dockerfile`, `start-container`, `config.json`
 
 2. Write `config.json` for the new version:
    ```json

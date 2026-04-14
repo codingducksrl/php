@@ -1,9 +1,11 @@
 # PHP Docker Images
 
-Docker images for Laravel applications published to the GitHub Container Registry (GHCR) as multi-arch manifests supporting `linux/amd64` and `linux/arm64`. Two image families are available:
+Docker images for Laravel applications published to the GitHub Container Registry (GHCR) as multi-arch manifests supporting `linux/amd64` and `linux/arm64`. Four image families are available:
 
 - **`laravel-php`** — production images built on [FrankenPHP](https://frankenphp.dev/)
 - **`laravel-sail`** — development images matching [Laravel Sail](https://laravel.com/docs/sail) (Ubuntu 24.04 + supervisord)
+- **`laravel-octane`** — production images for [Laravel Octane](https://laravel.com/docs/octane) with FrankenPHP
+- **`laravel-sail-octane`** — development images for Laravel Octane with FrankenPHP
 
 ---
 
@@ -121,7 +123,103 @@ PHP extensions: `bcmath`, `gd`, `igbinary`, `imagick`, `intl`, `imap`, `ldap`, `
 
 ---
 
-## Tag convention (both families)
+## laravel-octane
+
+Production-ready images for Laravel Octane, based on [serversideup/php](https://serversideup.net/open-source/docker-php/) with FrankenPHP. Exposes port 8000.
+
+### Pulling
+
+```sh
+# Latest stable (PHP 8.5, Node 24)
+docker pull ghcr.io/codingducksrl/laravel-octane:latest
+
+# Pin to a specific PHP + Node combination
+docker pull ghcr.io/codingducksrl/laravel-octane:php8.5-node22
+docker pull ghcr.io/codingducksrl/laravel-octane:php8.5-node24
+
+# Pin to a specific image version (recommended for production)
+docker pull ghcr.io/codingducksrl/laravel-octane:php8.5-node24-1.0.0
+```
+
+### Using as a base image
+
+```dockerfile
+FROM ghcr.io/codingducksrl/laravel-octane:php8.5-node24
+
+WORKDIR /app
+COPY . .
+RUN composer install --no-dev --optimize-autoloader
+```
+
+### Available tags
+
+| Tag | PHP | Node | Type |
+|-----|-----|------|------|
+| `php8.5-node22` | 8.5 | 22 | specific |
+| `php8.5-node24` | 8.5 | 24 | specific |
+| `php8.5` | 8.5 | 24 | PHP alias |
+| `latest` | 8.5 | 24 | latest stable |
+
+### What's included
+
+| Component | Details |
+|-----------|---------|
+| Base | [serversideup/php:8.5-frankenphp](https://serversideup.net/open-source/docker-php/) |
+| PHP | 8.5 |
+| Composer | 2 |
+| Node.js | 22 / 24 |
+| ffmpeg | system latest |
+
+PHP extensions: `bcmath`, `gd`, `igbinary`, `imagick`, `intl`, `msgpack`, `redis`
+
+Runtime defaults: listens on port 8000, cron removed.
+
+---
+
+## laravel-sail-octane
+
+Development images for Laravel Octane, based on [serversideup/php](https://serversideup.net/open-source/docker-php/) with FrankenPHP. Starts Octane via `php artisan octane:start --server=frankenphp` with `--watch` enabled. Exposes port 8000.
+
+### Pulling
+
+```sh
+# Latest stable (PHP 8.5, Node 24)
+docker pull ghcr.io/codingducksrl/laravel-sail-octane:latest
+
+# Pin to a specific PHP + Node combination
+docker pull ghcr.io/codingducksrl/laravel-sail-octane:php8.5-node22
+docker pull ghcr.io/codingducksrl/laravel-sail-octane:php8.5-node24
+
+# Pin to a specific image version
+docker pull ghcr.io/codingducksrl/laravel-sail-octane:php8.5-node24-1.0.0
+```
+
+### Available tags
+
+| Tag | PHP | Node | Type |
+|-----|-----|------|------|
+| `php8.5-node22` | 8.5 | 22 | specific |
+| `php8.5-node24` | 8.5 | 24 | specific |
+| `php8.5` | 8.5 | 24 | PHP alias |
+| `latest` | 8.5 | 24 | latest stable |
+
+### What's included
+
+| Component | Details |
+|-----------|---------|
+| Base | [serversideup/php:8.5-frankenphp](https://serversideup.net/open-source/docker-php/) |
+| PHP | 8.5 |
+| Composer | 2 |
+| Node.js | 22 / 24 |
+| PostgreSQL client | 17 |
+
+PHP extensions: `bcmath`, `gd`, `igbinary`, `imagick`, `intl`, `msgpack`, `pcov`, `redis`, `xdebug`
+
+> **Note:** the `WWWUSER` env var can be passed at runtime to set the `sail` user's UID. `WWWGROUP` is accepted as a build arg.
+
+---
+
+## Tag convention (all families)
 
 - **Specific tags** (`php8.5-node24`) — pin to an exact PHP + Node combination.
 - **Versioned tags** (`php8.5-node24-1.0.0`, `php8.5-1.0.0`) — pin to a specific image version. The image will never change under you, so updates are always explicit.
