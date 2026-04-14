@@ -50,6 +50,6 @@ RUN install-php-extensions \
 COPY start-container /usr/local/bin/start-container
 RUN chmod +x /usr/local/bin/start-container
 
-EXPOSE 8000/tcp
+EXPOSE 8080/tcp
 
 ENTRYPOINT ["start-container"]

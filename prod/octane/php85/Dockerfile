@@ -42,4 +42,4 @@ RUN install-php-extensions \
 
 USER www-data
 
-EXPOSE 8000/tcp
+EXPOSE 8080/tcp
