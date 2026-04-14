@@ -37,8 +37,8 @@ RUN install-php-extensions \
     pgsql \
     sockets
 
-ARG DEFAULT_SERVER_NAME=:80
-ENV SERVER_NAME=${DEFAULT_SERVER_NAME}
+#ARG DEFAULT_SERVER_NAME=:80
+#ENV SERVER_NAME=${DEFAULT_SERVER_NAME}
 
 USER www-data
 
